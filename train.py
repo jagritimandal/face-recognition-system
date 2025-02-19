@@ -16,7 +16,7 @@ class Train:
 
         
         #bg img
-        img1=Image.open(r"bg.jpg")
+        img1=Image.open(r"bg.png")
         img1=img1.resize((1530,710),Image.Resampling.LANCZOS)
         self.photoimg1=ImageTk.PhotoImage(img1)
         bg_img=Label(self.root,image=self.photoimg1)

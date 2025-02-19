@@ -11,7 +11,7 @@ class Face_Recognition_System:
         self.root.title("Face Recogniton System")
 
         #bg img
-        img1=Image.open(r"bg.jpg")
+        img1=Image.open(r"bg.png")
         img1=img1.resize((1530,710),Image.Resampling.LANCZOS)
         self.photoimg1=ImageTk.PhotoImage(img1)
         bg_img=Label(self.root,image=self.photoimg1)
@@ -52,7 +52,7 @@ class Face_Recognition_System:
         frame.place(x=340, y=35)
 
         #first img
-        img = Image.open(r"main.jpg")
+        img = Image.open(r"bg.png")
         img = img.resize((900, 700), Image.Resampling.LANCZOS)
         self.photoimg = ImageTk.PhotoImage(img)
         f_lbl = Label(self.root, image=self.photoimg)
