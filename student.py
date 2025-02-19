@@ -295,7 +295,7 @@ class Student:
                 if Update:
                     conn = mysql.connector.connect(host="localhost", user="root", password="Password@12345", database="face_recognizer")
                     my_cursor = conn.cursor()
-                    my_cursor.execute("UPDATE student SET dep=%s,course=%s,year=%s,sem=%s,name=%s,classroll=%s,makautroll=%s,email=%s,phone=%s,gender=%s,teacher=%s,photo=%s WHERE Student_id=%s", (
+                    my_cursor.execute("UPDATE student SET department=%s,course=%s,year=%s,sem=%s,name=%s,classroll=%s,makautroll=%s,email=%s,phone=%s,gender=%s,teacher=%s,photo=%s WHERE Student_id=%s", (
                         self.var_dep.get(), self.var_course.get(), self.var_year.get(), self.var_sem.get(), self.var_name.get(), self.var_classroll.get(), self.var_makautroll.get(),
                         self.var_email.get(), self.var_phone.get(), self.var_gender.get(), self.var_teacher.get(), self.var_radio1.get(), self.var_Student_id.get()
                     ))
@@ -356,7 +356,7 @@ class Student:
                 id=0
                 for x in myresult:
                     id+=1
-                my_cursor.execute("update student set dep=%s,course=%s,year=%s,sem=%s,name=%s,classroll=%s,makautroll=%s,email=%s,phone=%s,gender=%s,teacher=%s,photo=%s where Student_id=%s",(
+                my_cursor.execute("update student set department=%s,course=%s,year=%s,sem=%s,name=%s,classroll=%s,makautroll=%s,email=%s,phone=%s,gender=%s,teacher=%s,photo=%s where Student_id=%s",(
                                                                                        self.var_dep.get(),
                                                                                        self.var_course.get(),
                                                                                        self.var_year.get(),
