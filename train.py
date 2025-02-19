@@ -13,6 +13,7 @@ class Train:
         self.root = root
         self.root.geometry("1530x790+0+0")
         self.root.title("Face Recognition System")
+        self.dataset_path = "datasets"
 
         
         #bg img
@@ -46,7 +47,7 @@ class Train:
         frame.place(x=340, y=35)
 
         #first img
-        img = Image.open(r"train.jpg")
+        img = Image.open(r"bg.png")
         img = img.resize((600, 400), Image.Resampling.LANCZOS)
         self.photoimg = ImageTk.PhotoImage(img)
         f_lbl = Label(self.root, image=self.photoimg)
@@ -99,44 +100,66 @@ class Train:
 
         messagebox.showinfo("Result", "Acquisition dataset completed!!")
 
+    def process_images(self, data_dir):
+        face_encodings = []
+        labels = []
+
+        for person_name in os.listdir(data_dir):
+            person_path = os.path.join(data_dir, person_name)
+
+            if not os.path.isdir(person_path):
+                continue  # Skip files, only process folders
+
+            label = person_name  # Assuming folder names are student IDs
+
+            for image_name in os.listdir(person_path):
+                image_path = os.path.join(person_path, image_name)
+
+                try:
+                    # Load image using OpenCV
+                    img = cv2.imread(image_path)
+
+                    # Validate if image is correctly loaded
+                    if img is None:
+                        print(f"Skipping {image_path}: Cannot load image.")
+                        continue
+
+                    # Convert image to RGB (required by face_recognition)
+                    rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+                    # Detect faces
+                    face_locations = face_recognition.face_locations(rgb_img)
+                    encodings = face_recognition.face_encodings(rgb_img, face_locations)
+
+                    if len(encodings) > 0:
+                        face_encodings.append(encodings[0])
+                        labels.append(label)
+                    else:
+                        print(f"Warning: No face detected in {image_path}. Skipping.")
+
+                except Exception as e:
+                    print(f"Error processing {image_path}: {e}")
+                    continue  # Skip the file if any error occurs
+
+        return face_encodings, labels
+
+
     def train_classifier(self):
-        # Ensure embeddings directory exists
         if not os.path.exists("embeddings"):
             os.makedirs("embeddings")
 
-        data_dir = "datasets"
+        face_encodings, labels = self.process_images(self.dataset_path)
 
-        # Function to process images and extract face embeddings
-        def process_images(data_dir):
-            embeddings = []
-            labels = []
+        if len(face_encodings) == 0:
+            print("Error: No face encodings found. Ensure dataset has images.")
+            return
 
-            # Iterate through each student's directory
-            for student_id in os.listdir(data_dir):
-                student_dir = os.path.join(data_dir, student_id)
-                
-                if os.path.isdir(student_dir):
-                    # Iterate through each image in the student's directory
-                    for image_file in os.listdir(student_dir):
-                        image_path = os.path.join(student_dir, image_file)
-                        print(f"Processing {image_path}")
+        with open("embeddings/face_encodings.pkl", "wb") as f:
+            pickle.dump({"embeddings": face_encodings, "labels": labels}, f)
 
-                        # Load the image
-                        image = cv2.imread(image_path)
-                        rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-                        # Find all face locations and their encodings
-                        face_locations = face_recognition.face_locations(rgb_image)
-                        face_encodings = face_recognition.face_encodings(rgb_image, face_locations)
-
-                        for face_encoding in face_encodings:
-                            embeddings.append(face_encoding)
-                            labels.append(student_id)
-
-            return embeddings, labels
-
-        # Process images and get embeddings and labels
-        face_encodding, labels = process_images(data_dir)
+        print("Embeddings and labels saved successfully.")
+        messagebox.showinfo("Result", "Training dataset completed!!")
+    
 
         # Save the embeddings and labels
         with open("embeddings/embeddings.pkl", "wb") as f:

@@ -1,6 +1,7 @@
 import cv2
 from PIL import Image, ImageTk
 import numpy as np
+import os
 from tkinter import Label,Frame
 import face_recognition
 import mysql.connector
@@ -96,8 +97,22 @@ class FaceRecognitionSystem:
 
     def face_recognize(self):
         # Load embeddings
-        with open("embeddings/face_encodings.pkl", "rb") as f:
-            embeddings = pickle.load(f)
+        embedding_path = "embeddings/face_encodings.pkl"
+
+        if not os.path.exists(embedding_path):
+            print("Error: Face encodings file not found.")
+            return
+
+        with open(embedding_path, "rb") as f:
+            data = pickle.load(f)
+
+        # Ensure embeddings are dictionaries with "embeddings" and "labels"
+        if not isinstance(data, dict) or "embeddings" not in data or "labels" not in data:
+            print("Error: Face encodings file is corrupted or in incorrect format.")
+            return
+
+        known_encodings = np.array(data["embeddings"])
+        known_labels = np.array(data["labels"])
 
         video_cap = cv2.VideoCapture(0)
 
@@ -111,24 +126,23 @@ class FaceRecognitionSystem:
                 print("Error: Could not read frame from webcam.")
                 break
 
-            face_locations = face_recognition.face_locations(img)
-            face_encodings = face_recognition.face_encodings(img, face_locations)
+            rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            face_locations = face_recognition.face_locations(rgb_img)
+            face_encodings = face_recognition.face_encodings(rgb_img, face_locations)
 
             recognized_ids = []
 
             for face_encoding, (top, right, bottom, left) in zip(face_encodings, face_locations):
-                # Convert face encoding to numpy array
-                face_encoding = np.array(face_encoding)
+                matches = face_recognition.compare_faces(known_encodings, face_encoding)
+                face_distances = face_recognition.face_distance(known_encodings, face_encoding)
 
-                # Use numpy arrays for comparison
-                matches = face_recognition.compare_faces(embeddings, face_encoding)
-                face_distances = face_recognition.face_distance(embeddings, face_encoding)
                 best_match_index = np.argmin(face_distances)
 
                 if matches[best_match_index]:
-                    student_id = int(best_match_index + 1)  # Ensure student_id is a native Python int
+                    student_id = known_labels[best_match_index]
                     recognized_ids.append(student_id)
 
+                    # Database connection
                     conn = mysql.connector.connect(
                         host="localhost",
                         user="root",
@@ -140,22 +154,22 @@ class FaceRecognitionSystem:
                     student_name = my_cursor.fetchone()[0]
                     conn.close()
 
-                    # Draw a box around the face
+                    # Draw rectangle and label
                     cv2.rectangle(img, (left, top), (right, bottom), (0, 255, 0), 3)
-                    # Draw a label with the student's name and ID below the face
-                    cv2.rectangle(img, (left, bottom - 35), (right, bottom), (0, 255, 0), cv2.FILLED)
-                    cv2.putText(img, f"{student_name} ({student_id})", (left + 6, bottom - 6), cv2.FONT_HERSHEY_COMPLEX, 0.8, (255, 255, 255), 2)
+                    cv2.putText(img, f"{student_name} ({student_id})", (left + 6, bottom - 6),
+                                cv2.FONT_HERSHEY_COMPLEX, 0.8, (255, 255, 255), 2)
 
             if recognized_ids:
                 self.mark_attendance(recognized_ids)
 
-            cv2.imshow("Welcome To Face Recognition", img)
+            cv2.imshow("Face Recognition", img)
 
             if cv2.waitKey(1) == 13:
                 break
 
         video_cap.release()
         cv2.destroyAllWindows()
+
 
 ######################################################################
     def go_to_main(self):
