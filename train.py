@@ -14,6 +14,7 @@ class Train:
         self.root.geometry("1530x790+0+0")
         self.root.title("Face Recognition System")
         self.dataset_path = "datasets"
+        self.embeddings_path = "embeddings/face_encodings.pkl"
 
         
         #bg img
@@ -54,51 +55,66 @@ class Train:
         f_lbl.place(x=350, y=40, width=600, height=400)
 
     def faceAcquisition(self):
-        def faceAcquisition(self):
-            # Path to the base directory containing subdirectories of images
-            base_dir = "datasets"
+        face_encodings = []
+        labels = []
 
-            # Loop through all subdirectories in the base directory
-            for subdir, _, files in os.walk(base_dir):
-                for filename in files:
-                    # Construct the full image path
-                    img_path = os.path.join(subdir, filename)
-                    
-                    # Load the image
-                    img = cv2.imread(img_path)
-                    
-                    # Check if the image was loaded successfully
+        # Ensure the embeddings directory exists
+        if not os.path.exists("embeddings"):
+            os.makedirs("embeddings")
+
+        # Loop through all subdirectories in the dataset
+        for person_name in os.listdir(self.dataset_path):
+            person_path = os.path.join(self.dataset_path, person_name)
+
+            if not os.path.isdir(person_path):
+                continue  # Skip files, only process folders
+
+            label = person_name  # Assuming folder names are student IDs
+
+            for image_name in os.listdir(person_path):
+                image_path = os.path.join(person_path, image_name)
+
+                try:
+                    # Open image with PIL first to ensure proper format
+                    with Image.open(image_path) as img:
+                        img = img.convert("RGB")  # Convert to standard RGB
+                        img.save(image_path)  # Overwrite corrupted images safely
+
+                    # Reload image using OpenCV
+                    img = cv2.imread(image_path)
+
                     if img is None:
-                        print(f"Warning: Could not read image {img_path}. Skipping.")
+                        print(f"Skipping {image_path}: Cannot load image.")
                         continue
 
-                    try:
-                        # Convert the image to grayscale
-                        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                    # Convert to RGB format
+                    rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-                        # Apply Gaussian blur to the image
-                        blur = cv2.GaussianBlur(gray, (5, 5), 0)
+                    # Detect faces and extract encodings
+                    face_locations = face_recognition.face_locations(rgb_img)
+                    encodings = face_recognition.face_encodings(rgb_img, face_locations)
 
-                        # Apply adaptive thresholding to the image
-                        thresh = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+                    if encodings:
+                        face_encodings.append(encodings[0])
+                        labels.append(label)
+                        print(f"✔ Face detected in {image_path}")
+                    else:
+                        print(f"⚠ No face detected in {image_path}. Skipping.")
 
-                        # Apply morphological operations to the image
-                        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-                        dilate = cv2.dilate(thresh, kernel, iterations=3)
-                        erode = cv2.erode(dilate, kernel, iterations=3)
-                        
-                        # You can add further processing here if needed
+                except Exception as e:
+                    print(f"Error processing {image_path}: {e}")
+                    continue  # Skip problematic images
 
-                    except cv2.error as e:
-                        print(f"OpenCV error processing {img_path}: {e}")
-                        continue
+        # Save the extracted encodings
+        if face_encodings:
+            with open(self.embeddings_path, "wb") as f:
+                pickle.dump({"embeddings": face_encodings, "labels": labels}, f)
+            print(f"✅ Face encodings saved to {self.embeddings_path}")
+            messagebox.showinfo("Result", "Face acquisition completed!!")
+        else:
+            print("⚠ No face encodings found. Ensure dataset has valid images.")
+            messagebox.showwarning("Warning", "No faces detected in dataset!")
 
-                # Display the image (optional)
-                #cv2.imshow("user_1", erode)
-                # cv2.waitKey(0)
-                # cv2.destroyAllWindows()
-
-        messagebox.showinfo("Result", "Acquisition dataset completed!!")
 
     def process_images(self, data_dir):
         face_encodings = []
@@ -116,22 +132,26 @@ class Train:
                 image_path = os.path.join(person_path, image_name)
 
                 try:
-                    # Load image using OpenCV
+                    # Open image with PIL first to ensure proper format
+                    with Image.open(image_path) as img:
+                        img = img.convert("RGB")  # Convert to standard RGB
+                        img.save(image_path)  # Overwrite corrupted images safely
+                    
+                    # Reload image using OpenCV
                     img = cv2.imread(image_path)
 
-                    # Validate if image is correctly loaded
                     if img is None:
                         print(f"Skipping {image_path}: Cannot load image.")
                         continue
 
-                    # Convert image to RGB (required by face_recognition)
+                    # Convert image to RGB
                     rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
                     # Detect faces
                     face_locations = face_recognition.face_locations(rgb_img)
                     encodings = face_recognition.face_encodings(rgb_img, face_locations)
 
-                    if len(encodings) > 0:
+                    if encodings:
                         face_encodings.append(encodings[0])
                         labels.append(label)
                     else:
@@ -139,43 +159,27 @@ class Train:
 
                 except Exception as e:
                     print(f"Error processing {image_path}: {e}")
-                    continue  # Skip the file if any error occurs
+                    continue  # Skip problematic images
 
         return face_encodings, labels
 
-
     def train_classifier(self):
-        if not os.path.exists("embeddings"):
-            os.makedirs("embeddings")
-
-        face_encodings, labels = self.process_images(self.dataset_path)
-
-        if len(face_encodings) == 0:
-            print("Error: No face encodings found. Ensure dataset has images.")
+        # Load saved encodings
+        if not os.path.exists(self.embeddings_path):
+            print("⚠ No face encodings found. Run faceAcquisition first.")
             return
 
-        with open("embeddings/face_encodings.pkl", "wb") as f:
-            pickle.dump({"embeddings": face_encodings, "labels": labels}, f)
+        with open(self.embeddings_path, "rb") as f:
+            data = pickle.load(f)
 
-        print("Embeddings and labels saved successfully.")
+        face_encodings, labels = data["embeddings"], data["labels"]
+
+        if not face_encodings:
+            print("⚠ No face encodings found. Ensure dataset has images.")
+            return
+
+        print("✅ Training completed. Face encodings are ready for recognition.")
         messagebox.showinfo("Result", "Training dataset completed!!")
-    
-
-        # Save the embeddings and labels
-        with open("embeddings/embeddings.pkl", "wb") as f:
-            pickle.dump({"embeddings": face_encodding, "labels": labels}, f)
-        # Save embeddings
-        with open("embeddings/face_encodings.pkl", "wb") as f:
-            pickle.dump(face_encodding, f)
-
-        # Load embeddings
-        with open("embeddings/face_encodings.pkl", "rb") as f:
-            face_encodding = pickle.load(f)
-
-        print("Embeddings and labels saved successfully.")
-
-        messagebox.showinfo("Result", "Training dataset completed!!")
-
 ######################################################################
     def go_to_main(self):
         open_main_window(self.root)       
